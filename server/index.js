@@ -1,9 +1,12 @@
-import express from 'express';
-import cors from 'cors';
-import dotenv from 'dotenv';
-import pool, { initDB } from './db.js';
-import { checkAccess } from './middleware.js';
-import routes from './routes.js';
+import express from "express";
+import cors from "cors";
+import dotenv from "dotenv";
+import pool, { initDB } from "./db.js";
+import { checkAccess } from "./middleware.js";
+import routes from "./routes.js";
+
+import path from "path";
+import { fileURLToPath } from "url";
 
 dotenv.config();
 
@@ -14,15 +17,31 @@ const PORT = process.env.PORT || 3000;
 app.use(cors());
 app.use(express.json());
 
-// Check ACCESS_KEY en todas las rutas
-app.use('/api', checkAccess);
+// Check ACCESS_KEY en todas las rutas /api
+app.use("/api", checkAccess);
 
-// Rutas
-app.use('/api', routes);
+// Rutas API
+app.use("/api", routes);
 
-// Health check
-app.get('/health', (req, res) => {
-  res.json({ status: 'ok' });
+// Health check (sin ACCESS_KEY)
+app.get("/health", (req, res) => {
+  res.json({ status: "ok" });
+});
+
+// --- SERVIR FRONTEND (Vite build) ---
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+
+// /dist está en la raíz del proyecto (un nivel arriba de /server)
+const distPath = path.join(__dirname, "../dist");
+
+// Servir archivos estáticos (index.html, assets, etc.)
+app.use(express.static(distPath));
+
+// Fallback SPA: cualquier ruta que NO sea /api ni /health vuelve al frontend
+app.get("*", (req, res, next) => {
+  if (req.path.startsWith("/api") || req.path.startsWith("/health")) return next();
+  res.sendFile(path.join(distPath, "index.html"));
 });
 
 // Iniciar servidor
@@ -34,7 +53,7 @@ const start = async () => {
       console.log(`📊 API lista en http://localhost:${PORT}/api`);
     });
   } catch (error) {
-    console.error('Error iniciando servidor:', error);
+    console.error("Error iniciando servidor:", error);
     process.exit(1);
   }
 };
