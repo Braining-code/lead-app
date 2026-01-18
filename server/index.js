@@ -35,12 +35,12 @@ const __dirname = path.dirname(__filename);
 // /dist está en la raíz del proyecto (un nivel arriba de /server)
 const distPath = path.join(__dirname, "../dist");
 
-// Servir archivos estáticos (index.html, assets, etc.)
+// Servir archivos estáticos (assets, index.html, etc.)
 app.use(express.static(distPath));
 
 // Fallback SPA: cualquier ruta que NO sea /api ni /health vuelve al frontend
 app.get("*", (req, res, next) => {
-  if (req.path.startsWith("/api") || req.path.startsWith("/health")) return next();
+  if (req.path.startsWith("/api") || req.path === "/health") return next();
   res.sendFile(path.join(distPath, "index.html"));
 });
 
@@ -50,7 +50,7 @@ const start = async () => {
     await initDB();
     app.listen(PORT, () => {
       console.log(`🚀 Servidor en puerto ${PORT}`);
-      console.log(`📊 API lista en http://localhost:${PORT}/api`);
+      console.log(`📊 API lista en /api`);
     });
   } catch (error) {
     console.error("Error iniciando servidor:", error);
