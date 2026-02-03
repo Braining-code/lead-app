@@ -22,19 +22,19 @@ export default function LeadEntry() {
 
     try {
       await addLead(formData);
-      
+
       setMessage({ type: 'success', text: '✅ Lead agregado correctamente' });
-      setFormData({ 
-        contacto: 'whatsapp', 
-        nombre: '', 
-        apellido: '', 
-        telefono: '', 
-        email: '', 
-        zona: '0-5 kms', 
-        estado: 'consulta' 
+      setFormData({
+        contacto: 'whatsapp',
+        nombre: '',
+        apellido: '',
+        telefono: '',
+        email: '',
+        zona: '0-5 kms',
+        estado: 'consulta'
       });
       document.getElementById('nombre').focus();
-      
+
       setTimeout(() => setMessage({ type: '', text: '' }), 3000);
     } catch (error) {
       const errorMsg = error.response?.data?.error || 'Error al guardar lead';
@@ -47,17 +47,16 @@ export default function LeadEntry() {
   return (
     <div className="fixed inset-0 flex items-center justify-center bg-black/20 p-4">
       <div className="bg-white rounded-lg shadow-2xl w-full max-w-sm overflow-hidden">
-        
+
         <div className="p-4">
           <h2 className="text-lg font-bold text-gray-900 mb-4">Agregar Lead</h2>
-          
+
           {/* Message */}
           {message.text && (
-            <div className={`mb-4 p-3 rounded flex items-center gap-2 text-sm ${
-              message.type === 'success' 
-                ? 'bg-green-50 text-green-800 border border-green-200' 
+            <div className={`mb-4 p-3 rounded flex items-center gap-2 text-sm ${message.type === 'success'
+                ? 'bg-green-50 text-green-800 border border-green-200'
                 : 'bg-red-50 text-red-800 border border-red-200'
-            }`}>
+              }`}>
               {message.type === 'success' ? (
                 <CheckCircle className="w-4 h-4" />
               ) : (
@@ -66,7 +65,7 @@ export default function LeadEntry() {
               {message.text}
             </div>
           )}
-          
+
           <form onSubmit={handleAddLead} className="space-y-3">
             <div>
               <label className="block text-xs font-bold text-gray-700 mb-1">Cómo se contactó</label>
@@ -79,6 +78,9 @@ export default function LeadEntry() {
                 <option value="telefono">Teléfono</option>
                 <option value="email">Email</option>
                 <option value="formulario">Formulario Web</option>
+                <option value="paciente">Paciente</option>
+                <option value="referenciado_paciente">Referenciado Paciente</option>
+                <option value="referenciado_profesional">Referenciado Profesional</option>
               </select>
             </div>
 
@@ -150,7 +152,7 @@ export default function LeadEntry() {
               disabled={loading}
               className="w-full bg-cyan-600 hover:bg-cyan-700 disabled:bg-gray-400 text-white py-2.5 rounded font-bold text-sm flex items-center justify-center gap-2 transition"
             >
-              <Send className="w-4 h-4" /> 
+              <Send className="w-4 h-4" />
               {loading ? 'GUARDANDO...' : 'GUARDAR'}
             </button>
           </form>

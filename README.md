@@ -175,3 +175,4 @@ Obtener estadísticas
 
 ## Licencia
 
+MIT

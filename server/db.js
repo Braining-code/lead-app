@@ -1,14 +1,9 @@
-import dotenv from "dotenv";
-dotenv.config();
-
-import pkg from "pg";
+import pkg from 'pg';
 const { Pool } = pkg;
 
 const pool = new Pool({
   connectionString: process.env.DATABASE_URL,
-  ssl: process.env.NODE_ENV === "production"
-    ? { rejectUnauthorized: false }
-    : false,
+  ssl: process.env.NODE_ENV === 'production' ? { rejectUnauthorized: false } : false
 });
 
 export const initDB = async () => {
@@ -27,12 +22,19 @@ export const initDB = async () => {
         hora TIME DEFAULT CURRENT_TIME,
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
       );
-    `);
 
-    console.log("✅ Base de datos inicializada");
+      CREATE TABLE IF NOT EXISTS lead_interactions (
+        id SERIAL PRIMARY KEY,
+        lead_id INTEGER REFERENCES leads(id) ON DELETE CASCADE,
+        tipo VARCHAR(20) NOT NULL, -- 'email' o 'sms'
+        plantilla VARCHAR(100) NOT NULL,
+        fecha DATE DEFAULT CURRENT_DATE,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      );
+    `);
+    console.log('✅ Base de datos inicializada');
   } catch (error) {
-    console.error("❌ Error inicializando BD:", error);
-    throw error;
+    console.error('Error inicializando BD:', error);
   }
 };
 
