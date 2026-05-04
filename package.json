@@ -9,6 +9,7 @@
     "dev": "concurrently \"npm run server\" \"vite\"",
     "server": "node server/index.js",
     "prebuild": "chmod +x node_modules/.bin/vite || true",
+    "postinstall": "npm rebuild sqlite3 || true",
     "build": "vite build",
     "preview": "vite preview",
     "start": "node server/index.js"

@@ -1,7 +1,5 @@
 import pkg from 'pg';
 const { Pool } = pkg;
-import sqlite3 from 'sqlite3';
-import { open } from 'sqlite';
 
 const isPostgres = !!process.env.DATABASE_URL;
 
@@ -24,10 +22,7 @@ const pool = {
         throw new Error('SQLite DB no inicializada');
       }
       
-      // Convertir $1, $2 a ? para SQLite
       const sqlText = text.replace(/\$\d+/g, '?');
-      
-      // Determinar si es una consulta que devuelve filas
       const isSelectOrReturning = sqlText.trim().toUpperCase().startsWith('SELECT') || sqlText.toUpperCase().includes('RETURNING');
       
       if (isSelectOrReturning) {
@@ -70,6 +65,9 @@ export const initDB = async () => {
       `);
       console.log('✅ Base de datos PostgreSQL inicializada');
     } else {
+      const sqlite3 = (await import('sqlite3')).default;
+      const { open } = await import('sqlite');
+      
       sqliteDb = await open({
         filename: './database.sqlite',
         driver: sqlite3.Database
