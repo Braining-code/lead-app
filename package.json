@@ -8,6 +8,7 @@
   "scripts": {
     "dev": "concurrently \"npm run server\" \"vite\"",
     "server": "node server/index.js",
+    "prebuild": "chmod +x node_modules/.bin/vite || true",
     "build": "vite build",
     "preview": "vite preview",
     "start": "node server/index.js"
