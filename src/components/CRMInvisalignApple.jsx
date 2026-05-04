@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { getLeads, updateLead, deleteLead as apiDeleteLead, addInteraction, getLeadHistory } from '../api';
 import { useNavigate } from 'react-router-dom';
-import { Mail, MessageSquare, Search, X, CheckCircle, AlertCircle, Eye, Users, MessageCircle, Calendar, Stethoscope } from 'lucide-react';
+import { Mail, MessageSquare, Search, X, CheckCircle, AlertCircle, Eye, Users, MessageCircle, Calendar, Stethoscope, Clock, Phone, ArrowRight, Download, ChevronDown } from 'lucide-react';
 
 const HeartIcon = ({ className }) => (
     <svg viewBox="0 0 24 24" fill="currentColor" className={className}>
@@ -26,7 +26,7 @@ export default function InvisalignApple() {
             const processed = data.map(l => ({
                 ...l,
                 historial: [],
-                fecha: l.created_at ? l.created_at.split('T')[0] : new Date().toISOString().split('T')[0]
+                fecha: l.created_at ? l.created_at.substring(0, 10) : new Date().toISOString().split('T')[0]
             }));
             setLeads(processed);
         } catch (error) {
@@ -47,31 +47,77 @@ export default function InvisalignApple() {
         }
     };
 
-    const templates = {
-        email: [
-            { name: 'Seguimiento', desc: 'Contacto amistoso', body: 'Hola [nombre], ¿cómo estás? Te gustaría agendar una consulta con nosotros para hablar sobre tus opciones de tratamiento.' },
-            { name: 'Promoción', desc: 'Oferta especial', body: 'Hola [nombre], 20% de descuento en Invisalign este mes. Agende tu consulta gratuita hoy mismo.' }
-        ],
-        sms: [
-            { name: 'Seguimiento', desc: 'Con video de Invisalign', body: 'Hola [nombre], mira cómo funciona Invisalign: https://youtu.be/xyz' },
-            { name: 'Promoción', desc: 'Con video promocional', body: '20% desc en Invisalign. Mira el video: https://youtu.be/promo' }
-        ]
-    };
-
     const [selectedLeads, setSelectedLeads] = useState([]);
     const [filterState, setFilterState] = useState('todos');
     const [searchTerm, setSearchTerm] = useState('');
-    const [showModal, setShowModal] = useState(false);
-    const [modalType, setModalType] = useState(null);
-    const [selectedTemplate, setSelectedTemplate] = useState(null);
     const [message, setMessage] = useState({ type: '', text: '' });
     const [expandedLead, setExpandedLead] = useState(null);
 
+    const getNextState = (currentState) => {
+        const flow = [
+            'Consultó', 'Agendado', 'Asistió', 'Presupuesto Enviado', 
+            'Seguimiento 1', 'Seguimiento 2', 'Seguimiento 3'
+        ];
+        const idx = flow.indexOf(currentState);
+        if (idx !== -1 && idx < flow.length - 1) return flow[idx + 1];
+        return null;
+    };
+
+    const getStatusColor = (status) => {
+        const colors = {
+            'todos': { bg: 'bg-gray-100', text: 'text-gray-800', border: 'border-gray-200', gradient: 'from-gray-700 to-gray-900' },
+            'Consultó': { bg: 'bg-blue-100', text: 'text-blue-800', border: 'border-blue-200', gradient: 'from-blue-400 to-blue-500' },
+            'Agendado': { bg: 'bg-indigo-100', text: 'text-indigo-800', border: 'border-indigo-200', gradient: 'from-indigo-400 to-indigo-500' },
+            'Asistió': { bg: 'bg-purple-100', text: 'text-purple-800', border: 'border-purple-200', gradient: 'from-purple-400 to-purple-500' },
+            'Presupuesto Enviado': { bg: 'bg-pink-100', text: 'text-pink-800', border: 'border-pink-200', gradient: 'from-pink-400 to-pink-500' },
+            'Seguimiento 1': { bg: 'bg-orange-100', text: 'text-orange-800', border: 'border-orange-200', gradient: 'from-orange-400 to-orange-500' },
+            'Seguimiento 2': { bg: 'bg-yellow-100', text: 'text-yellow-800', border: 'border-yellow-200', gradient: 'from-yellow-400 to-yellow-500' },
+            'Seguimiento 3': { bg: 'bg-red-100', text: 'text-red-800', border: 'border-red-200', gradient: 'from-red-400 to-red-500' },
+            'Ganado': { bg: 'bg-emerald-100', text: 'text-emerald-800', border: 'border-emerald-200', gradient: 'from-emerald-400 to-emerald-500' },
+            'Perdido': { bg: 'bg-slate-100', text: 'text-slate-800', border: 'border-slate-200', gradient: 'from-slate-500 to-slate-600' }
+        };
+        return colors[status] || colors['todos'];
+    };
+
+    const getTrackingAlert = (lead) => {
+        if (!lead.status_date) return null;
+        
+        const hoursPassed = (new Date() - new Date(lead.status_date)) / (1000 * 60 * 60);
+        
+        if (lead.estado === 'Presupuesto Enviado' && hoursPassed >= 24) {
+            return { color: 'text-red-500', text: 'Seguimiento 24hs: Hoy enviar mensaje (Máximo)' };
+        }
+        if (lead.estado === 'Seguimiento 1' && hoursPassed >= 48) {
+            return { color: 'text-orange-500', text: 'Seguimiento 72hs: Hoy enviar mensaje (Dayana)' };
+        }
+        if (lead.estado === 'Seguimiento 2' && hoursPassed >= 72) {
+            return { color: 'text-yellow-500', text: 'Seguimiento 144hs: Hoy enviar video' };
+        }
+        return null;
+    };
+
+    const pendingLeads = leads.map(lead => {
+        if (!lead.status_date) return null;
+        const hoursPassed = (new Date() - new Date(lead.status_date)) / (1000 * 60 * 60);
+        
+        if (lead.estado === 'Presupuesto Enviado' && hoursPassed >= 24) {
+            return { ...lead, alertType: 'Seguimiento 24hs', instruction: 'Hoy enviar mensaje (Máximo)', color: 'text-red-600 bg-red-50 border-red-200 hover:bg-red-100', nextState: 'Seguimiento 1' };
+        }
+        if (lead.estado === 'Seguimiento 1' && hoursPassed >= 48) {
+            return { ...lead, alertType: 'Seguimiento 72hs', instruction: 'Hoy enviar mensaje (Dayana)', color: 'text-orange-600 bg-orange-50 border-orange-200 hover:bg-orange-100', nextState: 'Seguimiento 2' };
+        }
+        if (lead.estado === 'Seguimiento 2' && hoursPassed >= 72) {
+            return { ...lead, alertType: 'Seguimiento 144hs', instruction: 'Hoy enviar video', color: 'text-yellow-600 bg-yellow-50 border-yellow-200 hover:bg-yellow-100', nextState: 'Seguimiento 3' };
+        }
+        return null;
+    }).filter(Boolean);
+
     const stats = {
-        visitasSitio: 450,
-        leads: leads.length,
+        todos: leads.length,
         consulto: leads.filter(l => l.estado === 'Consultó').length,
         agendo: leads.filter(l => l.estado === 'Agendado').length,
+        asistio: leads.filter(l => l.estado === 'Asistió').length,
+        presupuesto: leads.filter(l => l.estado === 'Presupuesto Enviado').length,
         ganado: leads.filter(l => l.estado === 'Ganado').length,
         perdido: leads.filter(l => l.estado === 'Perdido').length,
     };
@@ -97,69 +143,35 @@ export default function InvisalignApple() {
         }
     };
 
-    const handleSend = async () => {
-        if (!selectedTemplate) {
-            setMessage({ type: 'error', text: 'Selecciona una plantilla' });
-            return;
-        }
-
-        const template = templates[modalType].find(t => t.name === selectedTemplate);
-
-        try {
-            // Send to all selected leads
-            const operations = selectedLeads.map(leadId =>
-                addInteraction(leadId, {
-                    tipo: modalType,
-                    plantilla: template.name
-                })
-            );
-
-            await Promise.all(operations);
-
-            // Refresh UI (optimistic or refetch)
-            // Here we just refetch data for simplicity to ensure sync
-            // For improved UX we could update local state immediately
-            selectedLeads.forEach(id => fetchHistory(id));
-
-            setMessage({
-                type: 'success',
-                text: `${selectedLeads.length} mensaje(s) enviado(s)`
-            });
-
-            setTimeout(() => {
-                setShowModal(false);
-                setSelectedLeads([]);
-                setMessage({ type: '', text: '' });
-            }, 2500);
-
-        } catch (error) {
-            console.error("Error sending messages", error);
-            setMessage({ type: 'error', text: 'Error enviando mensajes' });
-        }
-    };
-
-    const deleteLead = async (id) => {
-        if (!confirm('¿Eliminar este lead?')) return;
-        try {
-            await apiDeleteLead(id);
-            setLeads(leads.filter(l => l.id !== id));
-            setMessage({ type: 'success', text: 'Lead eliminado' });
-            setTimeout(() => setMessage({ type: '', text: '' }), 2000);
-        } catch (error) {
-            console.error("Delete failed", error);
-            setMessage({ type: 'error', text: 'Error al eliminar' });
-        }
-    };
-
     const updateLeadStatus = async (id, newStatus) => {
         try {
             await updateLead(id, newStatus);
-            setLeads(leads.map(l => l.id === id ? { ...l, estado: newStatus } : l));
+            fetchLeads(); // Fetch to get new dates and refresh pendingLeads
+            setMessage({ type: 'success', text: `Estado actualizado a ${newStatus}` });
+            setTimeout(() => setMessage({ type: '', text: '' }), 2000);
         } catch (error) {
             console.error("Update failed", error);
             setMessage({ type: 'error', text: 'Error actualizando estado' });
         }
     }
+
+    const exportToCSV = () => {
+        const headers = ["Nombre", "Apellido", "Contacto", "Telefono", "Email", "Estado", "Fecha"];
+        const rows = filteredLeads.map(l => [
+            l.nombre, l.apellido, l.contacto, l.telefono, l.email, l.estado, l.fecha
+        ]);
+        
+        const csvContent = "data:text/csv;charset=utf-8," 
+            + [headers.join(","), ...rows.map(e => e.join(","))].join("\n");
+            
+        const encodedUri = encodeURI(csvContent);
+        const link = document.createElement("a");
+        link.setAttribute("href", encodedUri);
+        link.setAttribute("download", "leads_export.csv");
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+    };
 
     return (
         <div className="min-h-screen bg-white">
@@ -210,61 +222,63 @@ export default function InvisalignApple() {
                 {/* MÉTRICAS - ESTILO APACHE */}
                 <div className="mb-16">
                     <h2 className="text-2xl font-semibold text-black mb-8">Dashboard</h2>
-                    <div className="grid grid-cols-3 gap-6">
+                    <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-7 gap-4">
                         {[
-                            { Icon: Eye, label: 'Visitas Sitio', value: stats.visitasSitio, color: 'from-blue-500 to-blue-600' },
-                            { Icon: Users, label: 'Leads', value: stats.leads, color: 'from-purple-500 to-purple-600' },
-                            { Icon: MessageCircle, label: 'Consultó', value: stats.consulto, color: 'from-orange-500 to-orange-600' },
-                            { Icon: Calendar, label: 'Agendo', value: stats.agendo, color: 'from-pink-500 to-pink-600' },
-                            { Icon: Stethoscope, label: 'Ganado', value: stats.ganado, color: 'from-green-500 to-green-600' },
-                            { Icon: X, label: 'Perdido', value: stats.perdido, color: 'from-gray-500 to-gray-600' }
-                        ].map((stat, idx) => (
-                            <div
-                                key={idx}
-                                className={`bg-gradient-to-br ${stat.color} rounded-3xl p-8 hover:shadow-2xl hover:scale-105 transition duration-300 cursor-default text-white group relative overflow-hidden`}
-                            >
-                                <div className="absolute -top-8 -right-8 w-24 h-24 bg-white/10 rounded-full blur-2xl group-hover:blur-3xl transition duration-300"></div>
-                                <stat.Icon className="w-12 h-12 mb-4 group-hover:scale-125 transition duration-300" strokeWidth={1.5} />
-                                <p className="text-sm font-semibold uppercase tracking-wide opacity-90 relative z-10">{stat.label}</p>
-                                <p className="text-5xl font-bold mt-3 relative z-10">{stat.value}</p>
-                            </div>
-                        ))}
+                            { Icon: Users, label: 'Todos', filter: 'todos', value: stats.todos },
+                            { Icon: MessageCircle, label: 'Consultó', filter: 'Consultó', value: stats.consulto },
+                            { Icon: Calendar, label: 'Agendado', filter: 'Agendado', value: stats.agendo },
+                            { Icon: Users, label: 'Asistió', filter: 'Asistió', value: stats.asistio },
+                            { Icon: Eye, label: 'Presupuesto', filter: 'Presupuesto Enviado', value: stats.presupuesto },
+                            { Icon: Stethoscope, label: 'Ganado', filter: 'Ganado', value: stats.ganado },
+                            { Icon: X, label: 'Perdido', filter: 'Perdido', value: stats.perdido }
+                        ].map((stat, idx) => {
+                            const isActive = filterState === stat.filter;
+                            const gradient = getStatusColor(stat.filter).gradient;
+                            return (
+                                <button
+                                    key={idx}
+                                    onClick={() => setFilterState(stat.filter)}
+                                    className={`bg-gradient-to-br ${gradient} rounded-2xl p-5 hover:shadow-2xl hover:scale-105 transition duration-300 text-white group relative overflow-hidden text-left border-4 ${isActive ? 'border-white shadow-xl scale-105' : 'border-transparent'}`}
+                                >
+                                    <div className="absolute -top-6 -right-6 w-16 h-16 bg-white/10 rounded-full blur-xl group-hover:blur-2xl transition duration-300"></div>
+                                    <stat.Icon className="w-8 h-8 mb-3 opacity-90 group-hover:scale-110 transition duration-300" strokeWidth={1.5} />
+                                    <p className="text-xs font-semibold uppercase tracking-wide opacity-90 relative z-10">{stat.label}</p>
+                                    <p className="text-3xl font-bold mt-1 relative z-10">{stat.value}</p>
+                                </button>
+                            );
+                        })}
                     </div>
                 </div>
 
-                {/* FILTROS */}
-                <div className="mb-12">
-                    <div className="flex gap-4 mb-8">
-                        <div className="flex-1 relative">
-                            <Search className="absolute left-5 top-4 w-5 h-5 text-gray-400" />
-                            <input
-                                type="text"
-                                placeholder="Buscar..."
-                                value={searchTerm}
-                                onChange={(e) => setSearchTerm(e.target.value)}
-                                className="w-full pl-14 pr-6 py-4 bg-gray-100 rounded-2xl focus:outline-none focus:bg-gray-150 text-base border-0"
-                            />
-                        </div>
-                        <select
-                            value={filterState}
-                            onChange={(e) => setFilterState(e.target.value)}
-                            className="px-6 py-4 bg-gray-100 rounded-2xl focus:outline-none text-base font-medium text-gray-900 border-0 cursor-pointer"
-                        >
-                            <option value="todos">Todos</option>
-                            <option value="Consultó">Consultó</option>
-                            <option value="Ganado">Ganado</option>
-                            <option value="Perdido">Perdido</option>
-                        </select>
+                {/* FILTROS Y EXPORTAR */}
+                <div className="mb-8 flex justify-between items-center gap-4">
+                    <div className="flex-1 relative max-w-md">
+                        <Search className="absolute left-5 top-4 w-5 h-5 text-gray-400" />
+                        <input
+                            type="text"
+                            placeholder="Buscar paciente o teléfono..."
+                            value={searchTerm}
+                            onChange={(e) => setSearchTerm(e.target.value)}
+                            className="w-full pl-14 pr-6 py-4 bg-gray-100 rounded-2xl focus:outline-none focus:bg-gray-150 text-base border-0"
+                        />
                     </div>
+                    <button
+                        onClick={exportToCSV}
+                        className="flex items-center gap-2 bg-green-600 hover:bg-green-700 text-white px-6 py-4 rounded-2xl font-bold shadow-lg transition active:scale-95"
+                    >
+                        <Download className="w-5 h-5" />
+                        Exportar CSV
+                    </button>
                 </div>
 
                 {/* TABLA */}
                 <div className="mb-16">
-                    <div className="bg-gray-50 rounded-3xl overflow-hidden">
-                        <table className="w-full">
-                            <thead className="border-b border-gray-200">
-                                <tr className="bg-white/50">
-                                    <th className="px-8 py-5 text-left">
+                    <div className="bg-gray-50 rounded-3xl border border-gray-200 overflow-hidden">
+                        <div className="max-h-[600px] overflow-y-auto relative">
+                            <table className="w-full text-left">
+                            <thead className="bg-gray-100 sticky top-0 z-10 shadow-sm border-b border-gray-200">
+                                <tr>
+                                    <th className="px-6 py-5 w-12">
                                         <input
                                             type="checkbox"
                                             checked={selectedLeads.length === filteredLeads.length && filteredLeads.length > 0}
@@ -272,19 +286,21 @@ export default function InvisalignApple() {
                                             className="w-5 h-5 rounded"
                                         />
                                     </th>
-                                    <th className="px-8 py-5 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">Nombre</th>
-                                    <th className="px-8 py-5 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">Teléfono</th>
-                                    <th className="px-8 py-5 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">Email</th>
-                                    <th className="px-8 py-5 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">Estado</th>
-                                    <th className="px-8 py-5 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">Fecha</th>
-                                    <th className="px-8 py-5 text-right text-xs font-semibold text-gray-600 uppercase tracking-wider">Acciones</th>
+                                    <th className="px-4 py-5 text-left text-xs font-bold text-gray-500 uppercase tracking-wider">Nombre</th>
+                                    <th className="px-4 py-5 text-left text-xs font-bold text-gray-500 uppercase tracking-wider">Apellido</th>
+                                    <th className="px-4 py-5 text-left text-xs font-bold text-gray-500 uppercase tracking-wider">Origen</th>
+                                    <th className="px-4 py-5 text-left text-xs font-bold text-gray-500 uppercase tracking-wider">Contacto</th>
+                                    <th className="px-4 py-5 text-left text-xs font-bold text-gray-500 uppercase tracking-wider">Estado Actual</th>
+                                    <th className="px-4 py-5 text-left text-xs font-bold text-gray-500 uppercase tracking-wider">Siguiente Acción</th>
+                                    <th className="px-4 py-5 text-left text-xs font-bold text-gray-500 uppercase tracking-wider">Fecha</th>
+                                    <th className="px-4 py-5 text-right text-xs font-bold text-gray-500 uppercase tracking-wider">Acciones</th>
                                 </tr>
                             </thead>
-                            <tbody className="divide-y divide-gray-200">
+                            <tbody className="divide-y divide-gray-100 border-t border-gray-100 bg-white">
                                 {filteredLeads.map((lead) => (
                                     <React.Fragment key={lead.id}>
-                                        <tr className="hover:bg-white/50 transition">
-                                            <td className="px-8 py-6">
+                                        <tr className="hover:bg-gray-50/50 transition">
+                                            <td className="px-6 py-5">
                                                 <input
                                                     type="checkbox"
                                                     checked={selectedLeads.includes(lead.id)}
@@ -292,36 +308,83 @@ export default function InvisalignApple() {
                                                     className="w-5 h-5 rounded"
                                                 />
                                             </td>
-                                            <td className="px-8 py-6 text-base font-semibold text-black">{lead.nombre}</td>
-                                            <td className="px-8 py-6 text-base text-gray-600">{lead.telefono}</td>
-                                            <td className="px-8 py-6 text-base text-gray-600">{lead.email}</td>
-                                            <td className="px-8 py-6">
-                                                <select
-                                                    value={lead.estado}
-                                                    onChange={(e) => updateLeadStatus(lead.id, e.target.value)}
-                                                    className="px-4 py-2 bg-gray-100 rounded-lg text-sm font-medium border-0 focus:outline-none cursor-pointer"
-                                                >
-                                                    <option value="Agendado">Agendado</option>
-                                                    <option value="Consultó">Consultó</option>
-                                                    <option value="Ganado">Ganado</option>
-                                                    <option value="Perdido">Perdido</option>
-                                                </select>
+                                            <td className="px-4 py-5">
+                                                <div className="text-base font-bold text-gray-900">{lead.nombre}</div>
                                             </td>
-                                            <td className="px-8 py-6 text-base text-gray-600">{lead.fecha}</td>
-                                            <td className="px-8 py-6 text-right">
-                                                <button
-                                                    onClick={() => deleteLead(lead.id)}
-                                                    className="p-2 hover:bg-red-50 text-gray-400 hover:text-red-500 rounded-lg transition"
-                                                    title="Eliminar Lead"
-                                                >
-                                                    <X className="w-5 h-5" />
-                                                </button>
+                                            <td className="px-4 py-5">
+                                                <div className="text-base font-bold text-gray-900">{lead.apellido}</div>
+                                            </td>
+                                            <td className="px-4 py-5">
+                                                <div className="text-xs text-gray-500 mt-0.5 capitalize flex items-center gap-1 font-semibold">
+                                                    <span className="w-1.5 h-1.5 rounded-full bg-gray-300"></span>
+                                                    {lead.contacto?.replace(/_/g, ' ')}
+                                                </div>
+                                            </td>
+                                            <td className="px-4 py-5">
+                                                <div className="text-sm font-semibold text-gray-700">{lead.telefono}</div>
+                                                <div className="text-xs text-gray-400 mt-0.5">{lead.email}</div>
+                                            </td>
+                                            <td className="px-4 py-5">
+                                                <div className="flex flex-col items-start gap-1.5">
+                                                    <div className="relative inline-block w-full max-w-[160px]">
+                                                        <select
+                                                            value={lead.estado}
+                                                            onChange={(e) => updateLeadStatus(lead.id, e.target.value)}
+                                                            className={`w-full appearance-none px-3 py-1.5 pr-8 border rounded-full text-xs font-bold tracking-wide focus:outline-none cursor-pointer ${getStatusColor(lead.estado).bg} ${getStatusColor(lead.estado).text} ${getStatusColor(lead.estado).border}`}
+                                                        >
+                                                            <option value="Consultó">Consultó</option>
+                                                            <option value="Agendado">Agendado</option>
+                                                            <option value="Asistió">Asistió</option>
+                                                            <option value="Presupuesto Enviado">Presupuesto</option>
+                                                            <option value="Seguimiento 1">Seg. 1</option>
+                                                            <option value="Seguimiento 2">Seg. 2</option>
+                                                            <option value="Seguimiento 3">Seg. 3</option>
+                                                            <option value="Ganado">Ganado</option>
+                                                            <option value="Perdido">Perdido</option>
+                                                        </select>
+                                                        <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-2">
+                                                            <ChevronDown className={`w-3.5 h-3.5 ${getStatusColor(lead.estado).text}`} />
+                                                        </div>
+                                                    </div>
+                                                    {getTrackingAlert(lead) && (
+                                                        <div className={`text-xs font-bold flex items-center gap-1 ${getTrackingAlert(lead).color}`}>
+                                                            <AlertCircle className="w-3.5 h-3.5" />
+                                                            {getTrackingAlert(lead).text}
+                                                        </div>
+                                                    )}
+                                                </div>
+                                            </td>
+                                            <td className="px-4 py-5">
+                                                {getNextState(lead.estado) ? (
+                                                    <button 
+                                                        onClick={() => updateLeadStatus(lead.id, getNextState(lead.estado))}
+                                                        className={`flex items-center gap-1.5 px-4 py-2 border rounded-xl text-xs font-bold shadow-sm transition hover:shadow-md hover:-translate-y-0.5 active:translate-y-0 ${getStatusColor(getNextState(lead.estado)).bg} ${getStatusColor(getNextState(lead.estado)).text} ${getStatusColor(getNextState(lead.estado)).border}`}
+                                                    >
+                                                        Pasar a {getNextState(lead.estado)} ➔
+                                                    </button>
+                                                ) : (
+                                                    <span className="text-gray-400 text-xs italic font-semibold flex items-center gap-1">
+                                                        <CheckCircle className="w-4 h-4" /> Finalizado
+                                                    </span>
+                                                )}
+                                            </td>
+                                            <td className="px-4 py-5 text-sm font-medium text-gray-500">{lead.fecha}</td>
+                                            <td className="px-4 py-5 text-right">
+                                                <div className="flex justify-end items-center gap-1">
+                                                    <button
+                                                        onClick={() => deleteLead(lead.id)}
+                                                        className="p-1.5 hover:bg-red-50 text-gray-400 hover:text-red-500 rounded-lg transition"
+                                                        title="Eliminar Lead"
+                                                    >
+                                                        <X className="w-5 h-5" />
+                                                    </button>
+                                                </div>
                                             </td>
                                         </tr>
 
                                         {/* HISTORIAL */}
                                         <tr className={`${expandedLead === lead.id ? 'bg-gray-100' : 'hidden'}`}>
-                                            <td colSpan="6" className="px-8 py-6">
+                                            <td colSpan="9" className="px-8 py-6">
                                                 <button
                                                     onClick={() => {
                                                         const isExpanding = expandedLead !== lead.id;
@@ -362,243 +425,10 @@ export default function InvisalignApple() {
                                 ))}
                             </tbody>
                         </table>
-                    </div>
-                </div>
-
-                {/* ACCIONES - REDISEÑADO */}
-                <div className="mb-16">
-                    <h2 className="text-2xl font-semibold text-black mb-8">Acciones</h2>
-                    <div className="grid grid-cols-2 gap-8">
-                        {/* SEGUIMIENTO */}
-                        <div className="space-y-4">
-                            <h3 className="text-lg font-semibold text-black">Seguimiento</h3>
-                            <div className="space-y-4">
-                                <button
-                                    onClick={() => {
-                                        const allLeads = leads.map(l => l.id);
-                                        const template = templates.sms.find(t => t.name === 'Seguimiento');
-                                        const updatedLeads = leads.map(lead => ({
-                                            ...lead,
-                                            historial: [
-                                                ...lead.historial,
-                                                {
-                                                    tipo: 'sms',
-                                                    fecha: new Date().toISOString().split('T')[0],
-                                                    plantilla: template.name
-                                                }
-                                            ]
-                                        }));
-                                        setLeads(updatedLeads);
-                                        setMessage({ type: 'success', text: `${allLeads.length} SMS enviado(s)` });
-                                        setTimeout(() => setMessage({ type: '', text: '' }), 2500);
-                                    }}
-                                    className="w-full bg-gradient-to-br from-green-50 to-emerald-50 hover:from-green-100 hover:to-emerald-100 rounded-2xl p-6 transition group border border-green-200 text-left active:scale-95"
-                                >
-                                    <div className="flex items-start justify-between mb-4">
-                                        <div>
-                                            <p className="text-sm font-semibold text-green-700 uppercase tracking-wide">SMS</p>
-                                            <p className="text-2xl font-bold text-green-900 mt-1">Contacto rápido</p>
-                                        </div>
-                                        <MessageSquare className="w-8 h-8 text-green-600 group-hover:scale-125 transition" />
-                                    </div>
-                                    <p className="text-sm text-green-700">Mira cómo funciona Invisalign: [video]</p>
-                                </button>
-
-                                <button
-                                    onClick={() => {
-                                        const allLeads = leads.map(l => l.id);
-                                        const template = templates.email.find(t => t.name === 'Seguimiento');
-                                        const updatedLeads = leads.map(lead => ({
-                                            ...lead,
-                                            historial: [
-                                                ...lead.historial,
-                                                {
-                                                    tipo: 'email',
-                                                    fecha: new Date().toISOString().split('T')[0],
-                                                    plantilla: template.name
-                                                }
-                                            ]
-                                        }));
-                                        setLeads(updatedLeads);
-                                        setMessage({ type: 'success', text: `${allLeads.length} Email(s) enviado(s)` });
-                                        setTimeout(() => setMessage({ type: '', text: '' }), 2500);
-                                    }}
-                                    className="w-full bg-gradient-to-br from-blue-50 to-cyan-50 hover:from-blue-100 hover:to-cyan-100 rounded-2xl p-6 transition group border border-blue-200 text-left active:scale-95"
-                                >
-                                    <div className="flex items-start justify-between mb-4">
-                                        <div>
-                                            <p className="text-sm font-semibold text-blue-700 uppercase tracking-wide">Email</p>
-                                            <p className="text-2xl font-bold text-blue-900 mt-1">Contacto personal</p>
-                                        </div>
-                                        <Mail className="w-8 h-8 text-blue-600 group-hover:scale-125 transition" />
-                                    </div>
-                                    <p className="text-sm text-blue-700">¿Cómo estás? Te gustaría agendar...</p>
-                                </button>
-                            </div>
-                        </div>
-
-                        {/* PROMOCIÓN */}
-                        <div className="space-y-4">
-                            <h3 className="text-lg font-semibold text-black">Promoción</h3>
-                            <div className="space-y-4">
-                                <button
-                                    onClick={() => {
-                                        const allLeads = leads.map(l => l.id);
-                                        const template = templates.sms.find(t => t.name === 'Promoción');
-                                        const updatedLeads = leads.map(lead => ({
-                                            ...lead,
-                                            historial: [
-                                                ...lead.historial,
-                                                {
-                                                    tipo: 'sms',
-                                                    fecha: new Date().toISOString().split('T')[0],
-                                                    plantilla: template.name
-                                                }
-                                            ]
-                                        }));
-                                        setLeads(updatedLeads);
-                                        setMessage({ type: 'success', text: `${allLeads.length} SMS enviado(s)` });
-                                        setTimeout(() => setMessage({ type: '', text: '' }), 2500);
-                                    }}
-                                    className="w-full bg-gradient-to-br from-orange-50 to-amber-50 hover:from-orange-100 hover:to-amber-100 rounded-2xl p-6 transition group border border-orange-200 text-left active:scale-95"
-                                >
-                                    <div className="flex items-start justify-between mb-4">
-                                        <div>
-                                            <p className="text-sm font-semibold text-orange-700 uppercase tracking-wide">SMS</p>
-                                            <p className="text-2xl font-bold text-orange-900 mt-1">Oferta rápida</p>
-                                        </div>
-                                        <MessageSquare className="w-8 h-8 text-orange-600 group-hover:scale-125 transition" />
-                                    </div>
-                                    <p className="text-sm text-orange-700">20% descuento + video Invisalign</p>
-                                </button>
-
-                                <button
-                                    onClick={() => {
-                                        const allLeads = leads.map(l => l.id);
-                                        const template = templates.email.find(t => t.name === 'Promoción');
-                                        const updatedLeads = leads.map(lead => ({
-                                            ...lead,
-                                            historial: [
-                                                ...lead.historial,
-                                                {
-                                                    tipo: 'email',
-                                                    fecha: new Date().toISOString().split('T')[0],
-                                                    plantilla: template.name
-                                                }
-                                            ]
-                                        }));
-                                        setLeads(updatedLeads);
-                                        setMessage({ type: 'success', text: `${allLeads.length} Email(s) enviado(s)` });
-                                        setTimeout(() => setMessage({ type: '', text: '' }), 2500);
-                                    }}
-                                    className="w-full bg-gradient-to-br from-pink-50 to-rose-50 hover:from-pink-100 hover:to-rose-100 rounded-2xl p-6 transition group border border-pink-200 text-left active:scale-95"
-                                >
-                                    <div className="flex items-start justify-between mb-4">
-                                        <div>
-                                            <p className="text-sm font-semibold text-pink-700 uppercase tracking-wide">Email</p>
-                                            <p className="text-2xl font-bold text-pink-900 mt-1">Oferta final</p>
-                                        </div>
-                                        <Mail className="w-8 h-8 text-pink-600 group-hover:scale-125 transition" />
-                                    </div>
-                                    <p className="text-sm text-pink-700">20% descuento + consulta gratuita</p>
-                                </button>
-                            </div>
                         </div>
                     </div>
                 </div>
             </div>
-
-            {/* MODAL */}
-            {showModal && (
-                <div className="fixed inset-0 bg-black/20 backdrop-blur-sm flex items-center justify-center p-4 z-50">
-                    <div className="bg-white rounded-3xl shadow-2xl max-w-md w-full overflow-hidden">
-                        <div className="px-8 py-8 border-b border-gray-200">
-                            <div className="flex items-center justify-between">
-                                <div className="flex items-center gap-3">
-                                    {modalType === 'email' ? (
-                                        <Mail className="w-7 h-7 text-black" />
-                                    ) : (
-                                        <MessageSquare className="w-7 h-7 text-black" />
-                                    )}
-                                    <h2 className="text-2xl font-semibold text-black">
-                                        {modalType === 'email' ? 'Email' : 'SMS'}
-                                    </h2>
-                                </div>
-                                <button
-                                    onClick={() => setShowModal(false)}
-                                    className="text-gray-600 hover:text-black transition"
-                                >
-                                    <X className="w-6 h-6" />
-                                </button>
-                            </div>
-                        </div>
-
-                        <div className="p-8 space-y-8">
-                            <div>
-                                <label className="block text-sm font-semibold text-gray-900 mb-4">
-                                    Plantilla
-                                </label>
-                                <div className="space-y-3">
-                                    {templates[modalType].map((template, idx) => (
-                                        <label
-                                            key={idx}
-                                            className={`flex items-start gap-4 p-5 rounded-2xl cursor-pointer transition ${selectedTemplate === template.name
-                                                ? 'bg-gray-100'
-                                                : 'hover:bg-gray-50'
-                                                }`}
-                                        >
-                                            <input
-                                                type="radio"
-                                                name="template"
-                                                value={template.name}
-                                                checked={selectedTemplate === template.name}
-                                                onChange={(e) => setSelectedTemplate(e.target.value)}
-                                                className="w-5 h-5 mt-1"
-                                            />
-                                            <div>
-                                                <p className="font-semibold text-black">{template.name}</p>
-                                                <p className="text-sm text-gray-600">{template.desc}</p>
-                                            </div>
-                                        </label>
-                                    ))}
-                                </div>
-                            </div>
-
-                            {selectedTemplate && (
-                                <div>
-                                    <label className="block text-sm font-semibold text-gray-900 mb-4">
-                                        Vista previa
-                                    </label>
-                                    <div className="bg-gray-50 rounded-2xl p-6">
-                                        <p className="text-base leading-relaxed text-gray-900">
-                                            {templates[modalType].find(t => t.name === selectedTemplate)?.body}
-                                        </p>
-                                    </div>
-                                </div>
-                            )}
-                        </div>
-
-                        <div className="flex gap-4 p-8 border-t border-gray-200">
-                            <button
-                                onClick={() => setShowModal(false)}
-                                className="flex-1 px-6 py-3 text-black font-semibold hover:bg-gray-100 rounded-xl transition"
-                            >
-                                Cancelar
-                            </button>
-                            <button
-                                onClick={handleSend}
-                                disabled={!selectedTemplate}
-                                className={`flex-1 px-6 py-3 rounded-xl font-semibold transition ${selectedTemplate
-                                    ? 'bg-black text-white hover:bg-gray-900'
-                                    : 'bg-gray-300 text-gray-600 cursor-not-allowed'
-                                    }`}
-                            >
-                                Enviar
-                            </button>
-                        </div>
-                    </div>
-                </div>
-            )}
         </div>
     );
 }

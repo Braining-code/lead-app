@@ -17,7 +17,24 @@ const PORT = process.env.PORT || 3000;
 app.use(cors());
 app.use(express.json());
 
-// Check ACCESS_KEY en todas las rutas /api
+// Rutas de autenticación (sin ACCESS_KEY)
+app.post("/api/auth/login", (req, res) => {
+  const { username, password } = req.body;
+  
+  if (!process.env.ADMIN_USERNAME || !process.env.ADMIN_PASSWORD) {
+    console.error("CRITICAL: ADMIN_USERNAME or ADMIN_PASSWORD environment variables are not set!");
+    return res.status(500).json({ error: 'Server configuration error' });
+  }
+
+  if (username === process.env.ADMIN_USERNAME && password === process.env.ADMIN_PASSWORD) {
+    // Si es correcto, retornamos el ACCESS_KEY para que el frontend lo use en futuras peticiones
+    return res.json({ token: process.env.ACCESS_KEY });
+  } else {
+    return res.status(401).json({ error: 'Credenciales inválidas' });
+  }
+});
+
+// Check ACCESS_KEY en todas las demás rutas /api
 app.use("/api", checkAccess);
 
 // Rutas API

@@ -1,7 +1,12 @@
 export const checkAccess = (req, res, next) => {
   const key = req.headers['x-access-key'] || req.query.key;
   
-  if (key !== 'dental2026') {
+  if (!process.env.ACCESS_KEY) {
+    console.error("CRITICAL: ACCESS_KEY environment variable is not set!");
+    return res.status(500).json({ error: 'Server configuration error' });
+  }
+
+  if (key !== process.env.ACCESS_KEY) {
     return res.status(401).json({ error: 'Acceso denegado' });
   }
   

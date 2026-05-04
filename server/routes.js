@@ -27,7 +27,9 @@ router.post('/leads', validateLead, async (req, res) => {
 router.get('/leads', async (req, res) => {
   try {
     const result = await pool.query(
-      `SELECT * FROM leads ORDER BY created_at DESC LIMIT 100`
+      `SELECT l.*, 
+        (SELECT created_at FROM lead_interactions li WHERE li.lead_id = l.id AND li.tipo = 'estado' ORDER BY created_at DESC LIMIT 1) as status_date
+       FROM leads l ORDER BY l.created_at DESC LIMIT 100`
     );
     res.json(result.rows);
   } catch (error) {
@@ -50,6 +52,12 @@ router.put('/leads/:id', async (req, res) => {
     if (result.rows.length === 0) {
       return res.status(404).json({ error: 'Lead no encontrado' });
     }
+
+    // Registrar cambio de estado para tracking
+    await pool.query(
+      `INSERT INTO lead_interactions (lead_id, tipo, plantilla) VALUES ($1, $2, $3)`,
+      [id, 'estado', estado]
+    );
 
     res.json({ success: true, data: result.rows[0] });
   } catch (error) {
